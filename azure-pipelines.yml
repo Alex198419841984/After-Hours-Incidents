@@ -1,0 +1,164 @@
+name: Working Hours Incident Handling
+
+on:
+  schedule:
+    # Runs every hour between 9 AM and 5 PM
+    - cron: "0 9-17 * * *"
+
+jobs:
+  incident-handling:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          import os
+from datetime import datetime, time
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.securityinsight import SecurityInsights
+
+# Replace with your Azure subscription ID, resource group, and workspace name
+SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
+RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
+WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
+
+def is_working_hours():
+    current_time = datetime.now().time()
+    start_time = time(9, 0)  # 9 AM
+    end_time = time(17, 0)   # 5 PM
+    return start_time <= current_time <= end_time
+
+def fetch_incidents():
+    if not is_working_hours():
+        print("Outside working hours. No incidents fetched.")
+        return
+
+    credential = DefaultAzureCredential()
+    client = SecurityInsights(credential, SUBSCRIPTION_ID)
+
+    incidents = client.incidents.list(
+        resource_group_name=RESOURCE_GROUP,
+        workspace_name=WORKSPACE_NAME
+    )
+
+    incidents_list = []
+    for incident in incidents:
+        incidents_list.append({
+            "id": incident.id,
+            "title": incident.properties.title,
+            "description": incident.properties.description,
+            "severity": incident.properties.severity,
+            "status": incident.properties.status
+        })
+
+    with open("incidents.json", "w") as f:
+        json.dump(incidents_list, f)
+
+    print("Incidents fetched successfully.")
+
+if __name__ == "__main__":
+    fetch_incidents()
+
+
+      - name: Get incidents from Microsoft Sentinel
+        run: |
+         import os
+from datetime import datetime, time
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.securityinsight import SecurityInsights
+
+# Replace with your Azure subscription ID, resource group, and workspace name
+SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
+RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
+WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
+
+def is_working_hours():
+    current_time = datetime.now().time()
+    start_time = time(9, 0)  # 9 AM
+    end_time = time(17, 0)   # 5 PM
+    return start_time <= current_time <= end_time
+
+def fetch_incidents():
+    if not is_working_hours():
+        print("Outside working hours. No incidents fetched.")
+        return
+
+    credential = DefaultAzureCredential()
+    client = SecurityInsights(credential, SUBSCRIPTION_ID)
+
+    incidents = client.incidents.list(
+        resource_group_name=RESOURCE_GROUP,
+        workspace_name=WORKSPACE_NAME
+    )
+
+    incidents_list = []
+    for incident in incidents:
+        incidents_list.append({
+            "id": incident.id,
+            "title": incident.properties.title,
+            "description": incident.properties.description,
+            "severity": incident.properties.severity,
+            "status": incident.properties.status
+        })
+
+    with open("incidents.json", "w") as f:
+        json.dump(incidents_list, f)
+
+    print("Incidents fetched successfully.")
+
+if __name__ == "__main__":
+    fetch_incidents()
+
+
+      - name: Send email to end user
+        run: |
+import smtplib
+import json
+import os
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Email configuration
+SMTP_SERVER = "smtp.example.com"
+SMTP_PORT = 587
+EMAIL_USER = os.getenv("EMAIL_USER")
+EMAIL_PASS = os.getenv("EMAIL_PASS")
+TO_EMAIL = "enduser@example.com"
+
+def send_email():
+    with open("incidents.json", "r") as f:
+        incidents = json.load(f)
+
+    # Create the email content
+    msg = MIMEMultipart()
+    msg["From"] = EMAIL_USER
+    msg["To"] = TO_EMAIL
+    msg["Subject"] = "Microsoft Sentinel Incidents"
+
+    body = "Here are the latest incidents:\n\n"
+    for incident in incidents:
+        body += f"ID: {incident['id']}\nDescription: {incident['description']}\n\n"
+
+    msg.attach(MIMEText(body, "plain"))
+
+    # Send the email
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.sendmail(EMAIL_USER, TO_EMAIL, msg.as_string())
+        print("Email sent successfully.")
+
+if __name__ == "__main__":
+    send_email()
+
+
